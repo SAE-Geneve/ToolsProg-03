@@ -3,8 +3,12 @@ import requests
 from PySide2.QtWidgets import QDialogButtonBox
 from typing import List
 from dataclasses import dataclass
+from enum import Enum, auto
 
-PERSON_ROLE = QtCore.Qt.UserRole + 1
+
+class Role(Enum):
+    PERSON_ROLE = QtCore.Qt.UserRole + 1
+    ID_ROLE = QtCore.Qt.UserRole + 2
 
 
 @dataclass(frozen=True)
@@ -14,15 +18,15 @@ class Person:
 
 
 def get_persons() -> List[Person]:
-    request_response: requests.Response = requests.get("http://127.0.0.1:8000/persons")
-    data = request_response.json()["persons"]
+    request_response: requests.Response = requests.get("http://127.0.0.1:8000/people")
+    data = request_response.json()["people"]
     persons: List[Person] = [Person(int(person["id"]), person["name"]) for person in data]
 
     return sorted(persons, key=lambda person: person.name.lower())
 
 
 def delete_persons(persons_id: List[int]):
-    requests.delete("http://127.0.0.1:8000/persons", json={"ids": persons_id})  # [1, 2, 3]
+    requests.delete("http://127.0.0.1:8000/player/remove", json={"ids": persons_id})  # [1, 2, 3]
 
 
 class CreatePersonDialog(QtWidgets.QDialog):
@@ -62,7 +66,7 @@ class CreatePersonDialog(QtWidgets.QDialog):
             QtWidgets.QMessageBox.warning(self, "Error", "Name cannot be empty")
             return False
 
-        requests.post("http://127.0.0.1:8000/person", json={"name": name})
+        requests.post("http://127.0.0.1:8000/player/create/", json={"name": name})
         return True
 
 
@@ -102,14 +106,22 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def on_selection_changed(self):
-        self.selected_persons_id = [selected_item.data(PERSON_ROLE).id for selected_item in
+        self.selected_persons_id = [selected_item.data(Role.ID_ROLE.value) for selected_item in
                                     self.list_widget.selectedItems()]
 
     def keyPressEvent(self, event):
         super().keyPressEvent(event)
-        if event.key() == QtCore.Qt.Key_Delete:
-            delete_persons(self.selected_persons_id)
-            self.update_list()
+        key_combination = [event.key(), event.modifiers()]
+        match key_combination:
+            case [QtCore.Qt.Key_Delete, QtCore.Qt.NoModifier]:
+                delete_persons(self.selected_persons_id)
+                self.update_list()
+            case [QtCore.Qt.Key_A, *_]:
+                print("Voila")
+            case _:
+                #https://www.youtube.com/watch?v=ij0XZ3BbvlQ&t=3s
+                pass
+
 
     def update_list(self):
         self.list_widget.clear()
@@ -117,7 +129,8 @@ class MainWindow(QtWidgets.QMainWindow):
         for person in persons:
             item = QtWidgets.QListWidgetItem()
             item.setData(QtCore.Qt.DisplayRole, person.name)
-            item.setData(PERSON_ROLE, person)
+            item.setData(Role.PERSON_ROLE.value, person)
+            item.setData(Role.ID_ROLE.value, person.id)
             self.list_widget.addItem(item)
 
 
