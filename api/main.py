@@ -1,8 +1,10 @@
+from typing import Optional, List, Tuple
+
 from fastapi import FastAPI, Request, HTTPException, status
 from peewee import Query, JOIN
 from playhouse.shortcuts import model_to_dict
 
-from globals import GameState
+from globals import GameState, GameResult
 from db_models import db, Player, Game, PlayerGame
 from http_models import Player as HTTPPlayer, Game as HTTPGame
 
@@ -34,16 +36,88 @@ async def get_players(request: Request):
 
 @app.post("/player")
 async def create_player(player: HTTPPlayer):
-    if not player.name:
+    if player.name is None or player.name == "":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A new player should have a name!")
     created_player: Player = Player.create(name=player.name, elo=player.elo)
     return model_to_dict(created_player)
 
 
+def get_player_by_name_or_id(player: HTTPPlayer) -> Optional[Player]:
+    db_player: Optional[Player] = None
+    if player.id is not None:
+        db_player = Player.select().where(Player.id == player.id).get()
+    elif player.name is not None and len(player.name) > 0:
+        db_player = Player.select().where(Player.name == player.name).get()
+    return db_player
+
+
+def check_game_consistency(game: HTTPGame) -> None:
+    code400 = status.HTTP_400_BAD_REQUEST
+    if game.id is not None:
+        raise HTTPException(status_code=code400, detail="A new game should not already have an id!")
+    if len(game.players) == 0:
+        raise HTTPException(status_code=code400, detail="A game should have at least one player!")
+    if game.state not in GameState:
+        game_states = {i.name: i.value for i in GameState}
+        raise HTTPException(status_code=code400, detail=f"Unknown game state! The game state must be one of the following: {game_states}")
+    if game.state in [GameState.PLAYING, GameState.FINISHED] and len(game.players) != 2:
+        raise HTTPException(status_code=code400, detail="A game that is playing or has been played must have exactly two players!")
+    if game.state == GameState.FINISHED and game.winner is None:
+        raise HTTPException(status_code=code400, detail=f"A finished game should have exactly one winner!")
+    if game.winner is not None and game.winner not in game.players:
+        raise HTTPException(status_code=code400, detail="The winner of a game must the one who played it!")
+
+
+def check_player_existence(game: HTTPGame) -> Tuple[Optional[Player], List[Optional[Player]]]:
+    db_winner: Optional[Player] = None
+    db_players: List[Optional[Player]] = [get_player_by_name_or_id(p) for p in game.players]
+    if None in db_players:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Requested player(s) does not exist!")
+    if game.winner is not None:
+        db_winner = get_player_by_name_or_id(game.winner)
+        if db_winner is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Requested winner does not exist!")
+        if db_winner not in db_players:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="The winner of a game must the one who played it!")
+    return db_winner, db_players
+
+
+def create_game_linked(game: HTTPGame, db_players: List[Player], db_winner: Optional[Player]) -> Game:
+    with db.atomic() as transaction:
+        created_game: Game = Game.create(state=game.state)
+        for db_player in db_players:
+            result_state: GameResult = GameResult.UNPLAYED
+            is_winner = db_winner is not None and db_player.id == db_winner.id
+            winner_game_state = [game.state, is_winner]
+            match winner_game_state:
+                case [GameState.UNPLAYED, *_]:
+                    result_state = GameResult.UNPLAYED
+                case [GameState.PLAYING, *_]:
+                    result_state = GameResult.PLAYING
+                case [GameState.ABORTED, *_]:
+                    result_state = GameResult.ABORTED
+                case [GameState.FINISHED, True]:
+                    result_state = GameResult.WON
+                case [GameState.FINISHED, False]:
+                    result_state = GameResult.LOST
+                case _:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid game and winner state!")
+            PlayerGame.create(player=db_player, game=created_game, result=result_state.value)
+
+    return created_game
+
+
+
 @app.post("/game")
 async def create_game(game: HTTPGame):
-    created_game: Game = Game.create(state=game.state)
-    return model_to_dict(created_game)
+    # Checking data consistency
+    check_game_consistency(game)
+
+    # Checking data existence in the database
+    db_winner, db_players = check_player_existence(game)
+
+    # Creating the game and linking the player(s) accordingly
+    return model_to_dict(create_game_linked(game, db_players, db_winner))
 
 
 @app.get("/")

@@ -1,19 +1,19 @@
-from enum import IntEnum, unique
+from enum import IntEnum, auto, unique
 
 
 @unique
 class GameState(IntEnum):
-    UNPLAYED = 0
-    PLAYING = 1
-    FINISHED = 2
-    ABORTED = 3
+    UNPLAYED = auto()
+    PLAYING = auto()
+    FINISHED = auto()
+    ABORTED = auto()
 
 
 @unique
 class GameResult(IntEnum):
-    UNPLAYED = 0
-    PLAYING = 1
-    WON = 2
-    LOST = 3
-    ABORTED = 4
+    UNPLAYED = auto()
+    PLAYING = auto()
+    WON = auto()
+    LOST = auto()
+    ABORTED = auto()
 
