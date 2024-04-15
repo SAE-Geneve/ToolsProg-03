@@ -6,7 +6,7 @@ from playhouse.shortcuts import model_to_dict
 
 from globals import GameState, GameResult
 from db_models import db, Player, Game, PlayerGame
-from http_models import Player as HTTPPlayer, Game as HTTPGame
+from http_models import NewPlayer, ExistingPlayer, Game as HTTPGame
 
 
 app = FastAPI()
@@ -25,30 +25,33 @@ async def add_process_time_header(request: Request, call_next):
 @app.get("/players")
 async def get_players(request: Request):
     players_query: Query = Player.select()
-    return players_query.dicts()
+    return list(players_query.dicts())
 
 
 @app.get("/games")
 async def get_players(request: Request):
     games_query: Query = Game.select()
-    return games_query.dicts()
+    return list(games_query.dicts())
 
 
 @app.post("/player")
-async def create_player(player: HTTPPlayer):
+async def create_player(player: NewPlayer):
     if player.name is None or player.name == "":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A new player should have a name!")
     created_player: Player = Player.create(name=player.name, elo=player.elo)
     return model_to_dict(created_player)
 
 
-def get_player_by_name_or_id(player: HTTPPlayer) -> Optional[Player]:
-    db_player: Optional[Player] = None
-    if player.id is not None:
-        db_player = Player.select().where(Player.id == player.id).get()
-    elif player.name is not None and len(player.name) > 0:
-        db_player = Player.select().where(Player.name == player.name).get()
-    return db_player
+@app.delete("/players")
+async def delete_players(player_ids: List[int]):
+    Player.delete().where(Player.id.in_(player_ids)).execute()
+    return {"Deleted players", player_ids}
+
+
+@app.delete("/games")
+async def delete_games(game_ids: List[int]):
+    Game.delete().where(Game.id.in_(game_ids)).execute()
+    return {"Deleted games", game_ids}
 
 
 def check_game_consistency(game: HTTPGame) -> None:
@@ -70,11 +73,12 @@ def check_game_consistency(game: HTTPGame) -> None:
 
 def check_player_existence(game: HTTPGame) -> Tuple[Optional[Player], List[Optional[Player]]]:
     db_winner: Optional[Player] = None
-    db_players: List[Optional[Player]] = [get_player_by_name_or_id(p) for p in game.players]
-    if None in db_players:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Requested player(s) does not exist!")
+    players_in_game_ids: List[int] = [player.id for player in game.players]
+    db_players: List[Optional[Player]] = Player.select().where(Player.id.in_(players_in_game_ids)).execute()
+    if None in db_players or len(db_players) != len(game.players):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Requested player(s) do not exist!")
     if game.winner is not None:
-        db_winner = get_player_by_name_or_id(game.winner)
+        db_winner = Player.select().where(Player.id == game.winner.id).get()
         if db_winner is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Requested winner does not exist!")
         if db_winner not in db_players:
@@ -105,7 +109,6 @@ def create_game_linked(game: HTTPGame, db_players: List[Player], db_winner: Opti
             PlayerGame.create(player=db_player, game=created_game, result=result_state.value)
 
     return created_game
-
 
 
 @app.post("/game")
