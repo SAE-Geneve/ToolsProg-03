@@ -45,13 +45,13 @@ async def create_player(player: NewPlayer):
 @app.delete("/players")
 async def delete_players(player_ids: List[int]):
     Player.delete().where(Player.id.in_(player_ids)).execute()
-    return {"Deleted players", player_ids}
+    return {"Deleted players": player_ids}
 
 
 @app.delete("/games")
 async def delete_games(game_ids: List[int]):
     Game.delete().where(Game.id.in_(game_ids)).execute()
-    return {"Deleted games", game_ids}
+    return {"Deleted games": game_ids}
 
 
 def check_game_consistency(game: HTTPGame) -> None:
