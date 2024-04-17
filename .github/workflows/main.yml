@@ -24,3 +24,5 @@ jobs:
         run: |
           cd frontend
           poetry install --no-interaction --no-root
+      - name: run tests
+        run: poetry run python test_player_model_handler.py

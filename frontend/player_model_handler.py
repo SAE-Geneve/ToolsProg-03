@@ -12,3 +12,4 @@ class PlayerModelHandler:
         item.setData(name, QtCore.Qt.DisplayRole)
         model.appendRow([item])
 
+
