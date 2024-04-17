@@ -20,3 +20,7 @@ jobs:
         with:
           virtualenvs-create: true
           installer-parallel: true
+      - name: Install dependencies
+        run: |
+          cd frontend
+          poetry install --no-interaction --no-root
