@@ -9,6 +9,7 @@ readme = "README.md"
 python = ">=3.10,<3.11"
 pyside2 = "^5.15.2.1"
 requests = "^2.31.0"
+pydantic = "^2.7.0"
 
 
 [build-system]
