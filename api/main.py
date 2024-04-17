@@ -29,7 +29,7 @@ async def get_players(request: Request):
 
 
 @app.get("/games")
-async def get_players(request: Request):
+async def get_games(request: Request):
     games_query: Query = Game.select()
     return list(games_query.dicts())
 
@@ -140,10 +140,3 @@ async def root():
              )
     for player in query:
         print(player.name)
-
-    return {"message": "Hello World"}
-
-
-@app.get("/hello/{name}")
-async def say_hello(name: str):
-    return {"message": f"Hello {name}"}
