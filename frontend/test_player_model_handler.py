@@ -1,4 +1,5 @@
 from PySide2 import QtGui, QtCore
+import unittest
 from unittest import TestCase
 from player_model_handler import PlayerModelHandler
 
@@ -20,3 +21,6 @@ class TestPlayerModelHandler(TestCase):
         with self.assertRaises(ValueError):
             PlayerModelHandler.add_player_to_model(model)
 
+
+if __name__ == '__main__':
+    unittest.main()
