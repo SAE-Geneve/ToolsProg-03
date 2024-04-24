@@ -51,4 +51,4 @@ jobs:
       - name: Run behaviour tests
         run: |
           cd frontend
-          behave
+          poetry run behave
