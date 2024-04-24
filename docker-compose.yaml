@@ -1,0 +1,30 @@
+services:
+  app:
+    build: api
+    restart: unless-stopped
+    ports:
+      - 8001:8000
+    environment:
+      - DB_HOST=db
+      - DB_NAME=testdb
+      - DB_USER=testdb
+      - DB_PASS=testdb
+    command: ['--host', '0.0.0.0']
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16.2
+    restart: unless-stopped
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_USER=testdb
+      - POSTGRES_PASSWORD=testdb
+      - POSTGRES_DB=testdb
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready']
+      interval: 10s
+      timeout: 5s
+      retries: 5

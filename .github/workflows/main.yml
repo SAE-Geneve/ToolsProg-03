@@ -3,19 +3,16 @@ name: Python application
 on:
   workflow_dispatch:
   push:
-    branches: ["main"]
-  pull_request:
-    branches: ["main"]
 
 jobs:
-  build:
+  UnitTests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: '3.10'
       - name: Install and configure Poetry
         uses: snok/install-poetry@v1
         with:
@@ -25,7 +22,31 @@ jobs:
         run: |
           cd frontend
           poetry install --no-interaction --no-root
-      - name: run tests
+      - name: Run unit tests
         run: |
           cd frontend
           poetry run python test_player_model_handler.py
+
+  BehaviourTests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start containers
+        run: docker-compose -f "docker-compose.yml" up -d --build --force-recreate
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install and configure Poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          installer-parallel: true
+      - name: Install dependencies
+        run: |
+          cd frontend
+          poetry install --no-interaction --no-root
+      - name: Run behaviour tests
+        run: |
+          cd frontend
+          behave
